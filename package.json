@@ -25,5 +25,18 @@
   "devDependencies": {
     "koishi": "^4.18.0",
     "typescript": "^5.8.2"
+  },
+  "koishi": {
+    "description": {
+      "zh": "将 adapter-github 的 star、push 事件转发到指定 QQ 群，使用数据库维护 owner/repo 到群号的绑定。",
+      "en": "Relay adapter-github star and push events to QQ groups using database-backed owner/repo bindings."
+    },
+    "service": {
+      "required": [
+        "database"
+      ],
+      "optional": [],
+      "implements": []
+    }
   }
 }

@@ -28,11 +28,11 @@ async function relayEvent(
   const matched = bindings.filter(binding => binding.enabled && binding.events.includes(eventName))
 
   if (!matched.length) {
-    logger.debug('no bindings matched for %s (%s)', event.repoKey, eventName)
+    if (config.debug) logger.info('no bindings matched for %s (%s)', event.repoKey, eventName)
     return
   }
 
-  const results = await Promise.allSettled(matched.map(async (binding) => {
+  const results = await runWithConcurrency(matched, config.concurrency, async (binding) => {
     const bot = resolveTargetBot(ctx, binding, config)
     if (!bot) {
       throw new Error(`未找到 ${binding.platform} 平台的目标 Bot`)
@@ -45,7 +45,7 @@ async function relayEvent(
     }
 
     return binding
-  }))
+  })
 
   results.forEach((result, index) => {
     if (result.status === 'rejected') {
@@ -58,16 +58,61 @@ async function relayEvent(
         binding.channelId,
         formatError(result.reason),
       )
+    } else if (config.debug) {
+      const binding = matched[index]
+      logger.info('relayed %s (%s) to %s:%s', event.repoKey, eventName, binding.platform, binding.channelId)
     }
   })
 }
 
 function resolveTargetBot(ctx: Context, binding: NormalizedBinding, config: Config): Bot | null {
-  const candidates = ctx.bots.filter(bot => bot.platform === binding.platform)
+  const targetBotId = binding.botId || config.defaultBotId
+  const candidates = ctx.bots.filter((bot) => {
+    if (bot.platform === 'github') return false
+    if (binding.platform) return bot.platform === binding.platform
+    if (config.defaultPlatform) return bot.platform === config.defaultPlatform
+    return true
+  })
+
   if (!candidates.length) return null
 
-  const targetBotId = binding.botId || config.defaultBotId
-  if (!targetBotId) return candidates[0]
+  if (targetBotId) {
+    return candidates.find(bot => bot.selfId === targetBotId) || null
+  }
 
-  return candidates.find(bot => bot.selfId === targetBotId) || null
+  if (candidates.length === 1) return candidates[0]
+
+  const platformGroups = new Map<string, Bot[]>()
+  for (const bot of candidates) {
+    const list = platformGroups.get(bot.platform) || []
+    list.push(bot)
+    platformGroups.set(bot.platform, list)
+  }
+
+  if (platformGroups.size === 1) return candidates[0]
+
+  return null
+}
+
+async function runWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  handler: (item: T, index: number) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const queue = items.map((item, index) => ({ item, index }))
+  const results: PromiseSettledResult<R>[] = new Array(items.length)
+  const workers = Array.from({ length: Math.min(Math.max(1, concurrency), items.length) }, async () => {
+    while (queue.length) {
+      const current = queue.shift()
+      if (!current) break
+      try {
+        const value = await handler(current.item, current.index)
+        results[current.index] = { status: 'fulfilled', value }
+      } catch (error) {
+        results[current.index] = { status: 'rejected', reason: error }
+      }
+    }
+  })
+  await Promise.all(workers)
+  return results
 }

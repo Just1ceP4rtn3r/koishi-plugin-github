@@ -7,16 +7,16 @@ export function normalizeRepoKey(repo?: string) {
   return /^[^/\s]+\/[^/\s]+$/.test(normalized) ? normalized : ''
 }
 
-export function parseEventList(value?: string) {
-  if (!value) return [...relayEvents]
+export function parseEventList(value?: string, fallback: RelayEventName[] = [...relayEvents]) {
+  if (!value) return [...fallback]
   const parts = value.split(',').map(item => item.trim()).filter(Boolean)
-  if (!parts.length) return [...relayEvents]
+  if (!parts.length) return [...fallback]
   if (parts.some(item => !relayEvents.includes(item as RelayEventName))) return null
   return Array.from(new Set(parts)) as RelayEventName[]
 }
 
-export function normalizeEvents(events?: RelayEventName[]) {
-  if (!events?.length) return [...relayEvents]
+export function normalizeEvents(events?: RelayEventName[], fallback: RelayEventName[] = [...relayEvents]) {
+  if (!events?.length) return [...fallback]
   return Array.from(new Set(events))
 }
 

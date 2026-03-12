@@ -22,10 +22,11 @@ export function registerCommands(ctx: Context, config: Config) {
       const targetChannelId = channelId || session?.channelId
       if (!targetChannelId) return '缺少目标群号，请直接传入 channelId，或在目标群里执行命令。'
 
-      const events = parseEventList(options.events)
+      const events = parseEventList(options.events, config.defaultEvents)
       if (!events) return `事件列表无效，只支持 ${relayEvents.join(',')}。`
 
       const platform = options.platform || inferPlatform(session) || config.defaultPlatform
+      if (!platform) return '无法确定目标平台。请在目标群里执行命令，或使用 -p 显式指定平台。'
       const botId = options.botId || inferBotId(session) || config.defaultBotId
       const guildId = options.guildId || inferGuildId(session)
       const userId = session?.userId
@@ -59,6 +60,7 @@ export function registerCommands(ctx: Context, config: Config) {
       if (!targetChannelId) return '缺少目标群号，请直接传入 channelId，或在目标群里执行命令。'
 
       const platform = options.platform || inferPlatform(session) || config.defaultPlatform
+      if (!platform) return '无法确定目标平台。请在目标群里执行命令，或使用 -p 显式指定平台。'
       const removed = await removeBinding(ctx, repoKey, platform, targetChannelId)
       if (!removed) return `未找到绑定：${repoKey} -> ${platform}:${targetChannelId}`
 
@@ -93,9 +95,10 @@ export function registerCommands(ctx: Context, config: Config) {
 
 function renderBindings(bindings: NormalizedBinding[]) {
   return bindings.map((binding) => {
+    const platform = binding.platform || 'auto'
     const suffix = binding.botId ? ` bot=${binding.botId}` : ''
     const user = binding.userId ? ` user=${binding.userId}` : ''
-    return `${binding.repo} -> ${binding.platform}:${binding.channelId}${suffix}${user} [${binding.events.join(', ')}] (${binding.source})`
+    return `${binding.repo} -> ${platform}:${binding.channelId}${suffix}${user} [${binding.events.join(', ')}] (${binding.source})`
   }).join('\n')
 }
 

@@ -27,7 +27,7 @@ export interface BindingConfig {
 
 export interface NormalizedBinding {
   repo: string
-  platform: string
+  platform?: string
   botId?: string
   channelId: string
   guildId?: string

@@ -81,7 +81,7 @@ export function getStaticBindings(config: Config): NormalizedBinding[] {
       botId: binding.botId || config.defaultBotId,
       channelId: binding.channelId,
       guildId: binding.guildId,
-      events: normalizeEvents(binding.events),
+      events: normalizeEvents(binding.events, config.defaultEvents),
       enabled: true,
       source: 'config',
     })
@@ -108,7 +108,7 @@ export async function getMergedBindings(ctx: Context, config: Config, repo: stri
 export function toNormalizedBinding(row: RelayBindingRecord): NormalizedBinding {
   return {
     repo: row.repo,
-    platform: row.platform,
+    platform: row.platform || undefined,
     botId: row.botId || undefined,
     channelId: row.channelId,
     guildId: row.guildId || undefined,
