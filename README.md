@@ -15,6 +15,148 @@
 2. 查询数据库中的 `owner/repo -> QQ 群` 绑定
 3. 通过 QQ Bot 转发到目标群
 
+
+
+## QuickStart
+
+以下假设：
+
+- 插件源码目录：`/app/koishi-plugin-github`
+- Koishi 主项目目录：`/app/my-bot`
+- Koishi HTTP 对外端口：`3000`
+- QQ 适配器已能正常给群发消息
+
+### 1. 把插件源码传到服务器
+
+可选方式：
+
+- `git clone`
+- `git pull`
+- `scp -r`
+
+推荐保持服务器上的插件目录本身就是一个 git 仓库，后续更新最省事。
+
+### 2. 编译插件
+
+```bash
+cd /app/koishi-plugin-github
+pnpm install
+pnpm build
+```
+
+### 3. 安装到 Koishi 主项目
+
+```bash
+cd /app/my-bot
+yarn add koishi-plugin-github-qq-relay@file:/app/koishi-plugin-github
+```
+
+### 4. 修改 `koishi.yml`
+
+示例：
+
+```yaml
+plugins:
+
+  github-qq-relay:
+    defaultEvents:
+      - push
+      - issue_opened
+      - discussion_created
+      - discussion_comment
+    debug: false
+    concurrency: 5
+    commandAuthority: 3
+    maxPushCommits: 3
+```
+
+### 5. 重启 Koishi
+
+```bash
+npm install -g pm2
+
+cd /app/my-bot
+
+pm2 list
+pm2 logs koishi
+pm2 restart koishi
+pm2 stop koishi
+pm2 delete koishi
+```
+
+
+## GitHub Webhook 配置
+
+进入目标仓库：
+
+`Settings -> Webhooks -> Add webhook`
+
+填写：
+
+- Payload URL: `http://你的公网地址:3000/github/webhook`
+- Content type: `application/json`
+- Secret: 与 `webhookSecret` 一致
+
+建议至少勾选：
+
+- `Watch`
+- `Pushes`
+- `Issues`
+- `Discussions`
+
+如果希望少折腾，也可以直接选：
+
+- `Send me everything`
+
+## 首次联调
+
+推荐按这个顺序验：
+
+1. 先确认 Koishi 可以正常给目标 QQ 群发消息
+2. 在目标 QQ 群执行：
+
+```text
+github-relay.bind owner/repo
+```
+
+3. 查看绑定：
+
+```text
+github-relay.list owner/repo
+```
+
+4. 在 GitHub 仓库中分别触发：
+- Star
+- Push
+- 创建 Issue 并指派 assignee
+- 创建 Discussion
+- 评论 Discussion
+
+5. 检查群消息是否按预期到达
+
+## 更新流程
+
+如果以后你通过 Git 更新插件源码，服务器上的标准更新流程是：
+
+```bash
+cd /app/koishi-plugin
+git pull
+pnpm install
+pnpm build
+
+cd /app/my-bot
+yarn add koishi-plugin-github-qq-relay@file:/app/koishi-plugin
+```
+
+然后重启 Koishi。
+
+注意：
+
+- 只 `git pull` 不够
+- 必须重新 `pnpm build`
+- 对于 `file:` 本地依赖，通常还需要重新执行一次 `yarn add ...@file:/...`
+
+
 ## 功能
 
 当前支持的转发事件：
@@ -229,144 +371,6 @@ pnpm add /app/koishi-plugin
 
 但如果主项目已经明确配置为 Yarn，请继续用 Yarn，不要混用。
 
-## Koishi 服务器完整部署流程
-
-以下假设：
-
-- 插件源码目录：`/app/koishi-plugin`
-- Koishi 主项目目录：`/app/my-bot`
-- Koishi HTTP 对外端口：`3000`
-- QQ 适配器已能正常给群发消息
-
-### 1. 把插件源码传到服务器
-
-可选方式：
-
-- `git clone`
-- `git pull`
-- `scp -r`
-
-推荐保持服务器上的插件目录本身就是一个 git 仓库，后续更新最省事。
-
-### 2. 编译插件
-
-```bash
-cd /app/koishi-plugin-github
-pnpm install
-pnpm build
-```
-
-### 3. 安装到 Koishi 主项目
-
-```bash
-cd /app/my-bot
-yarn add koishi-plugin-github-qq-relay@file:/app/koishi-plugin-github
-```
-
-### 4. 修改 `koishi.yml`
-
-示例：
-
-```yaml
-plugins:
-
-  github-qq-relay:
-    defaultEvents:
-      - push
-      - issue_opened
-      - discussion_created
-      - discussion_comment
-    debug: false
-    concurrency: 5
-    commandAuthority: 3
-    maxPushCommits: 3
-```
-
-### 5. 重启 Koishi
-
-```bash
-npm install -g pm2
-
-cd /app/my-bot
-
-pm2 list
-pm2 logs koishi
-pm2 restart koishi
-pm2 stop koishi
-pm2 delete koishi
-```
-
-
-## GitHub Webhook 配置
-
-进入目标仓库：
-
-`Settings -> Webhooks -> Add webhook`
-
-填写：
-
-- Payload URL: `http://你的公网地址:3000/github/webhook`
-- Content type: `application/json`
-- Secret: 与 `webhookSecret` 一致
-
-建议至少勾选：
-
-- `Watch`
-- `Pushes`
-- `Issues`
-- `Discussions`
-
-如果希望少折腾，也可以直接选：
-
-- `Send me everything`
-
-## 首次联调
-
-推荐按这个顺序验：
-
-1. 先确认 Koishi 可以正常给目标 QQ 群发消息
-2. 在目标 QQ 群执行：
-
-```text
-github-relay.bind owner/repo
-```
-
-3. 查看绑定：
-
-```text
-github-relay.list owner/repo
-```
-
-4. 在 GitHub 仓库中分别触发：
-- Star
-- Push
-- 创建 Issue 并指派 assignee
-- 创建 Discussion
-- 评论 Discussion
-
-5. 检查群消息是否按预期到达
-
-## 更新流程
-
-如果以后你通过 Git 更新插件源码，服务器上的标准更新流程是：
-
-```bash
-cd /app/koishi-plugin
-git pull
-pnpm install
-pnpm build
-
-cd /app/my-bot
-yarn add koishi-plugin-github-qq-relay@file:/app/koishi-plugin
-```
-
-然后重启 Koishi。
-
-注意：
-
-- 只 `git pull` 不够
-- 必须重新 `pnpm build`
-- 对于 `file:` 本地依赖，通常还需要重新执行一次 `yarn add ...@file:/...`
 
 ## 当前消息格式
 
