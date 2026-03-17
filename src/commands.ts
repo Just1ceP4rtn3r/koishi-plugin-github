@@ -2,13 +2,14 @@ import { Context } from 'koishi'
 import { Config } from './config'
 import { getStaticBindings, listBindings, removeBinding, toNormalizedBinding, upsertBinding } from './database'
 import { NormalizedBinding, relayEvents } from './types'
-import { inferBotId, inferGuildId, inferPlatform, normalizeRepoKey, parseEventList } from './utils'
+import { inferBotId, inferGuildId, inferPlatform, normalizeBranch, normalizeRepoKey, parseEventList } from './utils'
 
 export function registerCommands(ctx: Context, config: Config) {
   ctx.command('github-relay', 'GitHub 事件转发管理')
 
   ctx.command('github-relay.bind <repo:string> [channelId:string]', '绑定 GitHub 仓库到当前群或指定群')
     .option('events', `-e <events:string> 事件列表，逗号分隔：${relayEvents.join(',')}`)
+    .option('branch', '-r <branch:string> Push 分支过滤，默认 main')
     .option('platform', '-p <platform:string> 目标平台')
     .option('botId', '-b <botId:string> 目标 Bot ID')
     .option('guildId', '-g <guildId:string> 可选 guildId')
@@ -24,6 +25,7 @@ export function registerCommands(ctx: Context, config: Config) {
 
       const events = parseEventList(options.events, config.defaultEvents)
       if (!events) return `事件列表无效，只支持 ${relayEvents.join(',')}。`
+      const branch = normalizeBranch(options.branch, config.defaultBranch)
 
       const platform = options.platform || inferPlatform(session) || config.defaultPlatform
       if (!platform) return '无法确定目标平台。请在目标群里执行命令，或使用 -p 显式指定平台。'
@@ -33,6 +35,7 @@ export function registerCommands(ctx: Context, config: Config) {
 
       const mode = await upsertBinding(ctx, {
         repo: repoKey,
+        branch,
         platform,
         botId,
         channelId: targetChannelId,
@@ -43,11 +46,12 @@ export function registerCommands(ctx: Context, config: Config) {
       })
 
       return mode === 'created'
-        ? `已创建绑定：${repoKey} -> ${platform}:${targetChannelId} (${events.join(', ')})`
-        : `已更新绑定：${repoKey} -> ${platform}:${targetChannelId} (${events.join(', ')})`
+        ? `已创建绑定：${repoKey}@${branch} -> ${platform}:${targetChannelId} (${events.join(', ')})`
+        : `已更新绑定：${repoKey}@${branch} -> ${platform}:${targetChannelId} (${events.join(', ')})`
     })
 
   ctx.command('github-relay.unbind <repo:string> [channelId:string]', '解绑 GitHub 仓库与群的转发')
+    .option('branch', '-r <branch:string> Push 分支过滤，默认 main')
     .option('platform', '-p <platform:string> 目标平台')
     .action(async ({ session, options }: any, repo: string, channelId?: string) => {
       const denied = ensureAuthority(session, config.commandAuthority)
@@ -61,10 +65,11 @@ export function registerCommands(ctx: Context, config: Config) {
 
       const platform = options.platform || inferPlatform(session) || config.defaultPlatform
       if (!platform) return '无法确定目标平台。请在目标群里执行命令，或使用 -p 显式指定平台。'
-      const removed = await removeBinding(ctx, repoKey, platform, targetChannelId)
-      if (!removed) return `未找到绑定：${repoKey} -> ${platform}:${targetChannelId}`
+      const branch = normalizeBranch(options.branch, config.defaultBranch)
+      const removed = await removeBinding(ctx, repoKey, branch, platform, targetChannelId)
+      if (!removed) return `未找到绑定：${repoKey}@${branch} -> ${platform}:${targetChannelId}`
 
-      return `已解绑：${repoKey} -> ${platform}:${targetChannelId}`
+      return `已解绑：${repoKey}@${branch} -> ${platform}:${targetChannelId}`
     })
 
   ctx.command('github-relay.list [repo:string]', '查看当前转发绑定')
@@ -96,9 +101,10 @@ export function registerCommands(ctx: Context, config: Config) {
 function renderBindings(bindings: NormalizedBinding[]) {
   return bindings.map((binding) => {
     const platform = binding.platform || 'auto'
+    const branch = binding.branch || 'main'
     const suffix = binding.botId ? ` bot=${binding.botId}` : ''
     const user = binding.userId ? ` user=${binding.userId}` : ''
-    return `${binding.repo} -> ${platform}:${binding.channelId}${suffix}${user} [${binding.events.join(', ')}] (${binding.source})`
+    return `${binding.repo} branch=${branch} -> ${platform}:${binding.channelId}${suffix}${user} [${binding.events.join(', ')}] (${binding.source})`
   }).join('\n')
 }
 

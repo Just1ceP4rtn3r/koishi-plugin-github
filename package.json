@@ -28,8 +28,8 @@
   },
   "koishi": {
     "description": {
-      "zh": "将 adapter-github 的 star、push 事件转发到指定 QQ 群，使用数据库维护 owner/repo 到群号的绑定。",
-      "en": "Relay adapter-github star and push events to QQ groups using database-backed owner/repo bindings."
+      "zh": "将 adapter-github 的 star、push、PR 等事件转发到指定 QQ 群，支持按分支过滤 push。",
+      "en": "Relay adapter-github star, push, and pull request events to QQ groups with branch-based push filtering."
     },
     "service": {
       "required": [

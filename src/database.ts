@@ -1,12 +1,13 @@
 import { Context } from 'koishi'
 import { Config } from './config'
 import { NormalizedBinding, RelayBindingRecord } from './types'
-import { makeBindingKey, normalizeEvents, normalizeRepoKey } from './utils'
+import { makeBindingKey, normalizeBranch, normalizeEvents, normalizeRepoKey } from './utils'
 
 export function extendDatabase(ctx: Context) {
   ctx.model.extend('github_relay_bindings', {
     id: { type: 'unsigned', length: 10 },
     repo: { type: 'string', length: 255 },
+    branch: 'string',
     platform: 'string',
     botId: 'string',
     channelId: 'string',
@@ -33,15 +34,18 @@ export async function listBindings(ctx: Context, repo?: string) {
 }
 
 export async function upsertBinding(ctx: Context, data: Omit<RelayBindingRecord, 'id' | 'createdAt' | 'updatedAt'>) {
+  const branch = normalizeBranch(data.branch)
   const rows = await ctx.database.get('github_relay_bindings', {
     repo: data.repo,
     platform: data.platform,
     channelId: data.channelId,
   })
+  const matchedRow = rows.find(row => normalizeBranch(row.branch) === branch)
 
   const now = new Date()
-  if (rows.length) {
-    await ctx.database.set('github_relay_bindings', { id: rows[0].id }, {
+  if (matchedRow) {
+    await ctx.database.set('github_relay_bindings', { id: matchedRow.id }, {
+      branch,
       botId: data.botId,
       guildId: data.guildId,
       userId: data.userId,
@@ -54,6 +58,7 @@ export async function upsertBinding(ctx: Context, data: Omit<RelayBindingRecord,
 
   await ctx.database.create('github_relay_bindings', {
     ...data,
+    branch,
     events: normalizeEvents(data.events),
     createdAt: now,
     updatedAt: now,
@@ -61,10 +66,12 @@ export async function upsertBinding(ctx: Context, data: Omit<RelayBindingRecord,
   return 'created'
 }
 
-export async function removeBinding(ctx: Context, repo: string, platform: string, channelId: string) {
+export async function removeBinding(ctx: Context, repo: string, branch: string, platform: string, channelId: string) {
+  const normalizedBranch = normalizeBranch(branch)
   const rows = await ctx.database.get('github_relay_bindings', { repo, platform, channelId })
-  if (!rows.length) return false
-  await ctx.database.remove('github_relay_bindings', { id: rows[0].id })
+  const matchedRow = rows.find(row => normalizeBranch(row.branch) === normalizedBranch)
+  if (!matchedRow) return false
+  await ctx.database.remove('github_relay_bindings', { id: matchedRow.id })
   return true
 }
 
@@ -77,6 +84,7 @@ export function getStaticBindings(config: Config): NormalizedBinding[] {
 
     bindings.push({
       repo,
+      branch: normalizeBranch(binding.branch, config.defaultBranch),
       platform: binding.platform || config.defaultPlatform,
       botId: binding.botId || config.defaultBotId,
       channelId: binding.channelId,
@@ -94,12 +102,12 @@ export async function getMergedBindings(ctx: Context, config: Config, repo: stri
   const merged = new Map<string, NormalizedBinding>()
 
   for (const binding of getStaticBindings(config).filter(item => item.repo === repo)) {
-    merged.set(makeBindingKey(binding.repo, binding.platform, binding.channelId, binding.guildId, binding.botId), binding)
+    merged.set(makeBindingKey(binding.repo, binding.branch, binding.platform, binding.channelId, binding.guildId, binding.botId), binding)
   }
 
   for (const row of await queryBindings(ctx, repo)) {
     const binding = toNormalizedBinding(row)
-    merged.set(makeBindingKey(binding.repo, binding.platform, binding.channelId, binding.guildId, binding.botId), binding)
+    merged.set(makeBindingKey(binding.repo, binding.branch, binding.platform, binding.channelId, binding.guildId, binding.botId), binding)
   }
 
   return Array.from(merged.values())
@@ -108,6 +116,7 @@ export async function getMergedBindings(ctx: Context, config: Config, repo: stri
 export function toNormalizedBinding(row: RelayBindingRecord): NormalizedBinding {
   return {
     repo: row.repo,
+    branch: normalizeBranch(row.branch),
     platform: row.platform || undefined,
     botId: row.botId || undefined,
     channelId: row.channelId,

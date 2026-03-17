@@ -59,8 +59,10 @@ yarn add koishi-plugin-github-qq-relay@file:/app/koishi-plugin-github
 plugins:
 
   github-qq-relay:
+    defaultBranch: main
     defaultEvents:
       - push
+      - pull_request
       - issue_opened
       - discussion_created
       - discussion_comment
@@ -101,6 +103,7 @@ pm2 delete koishi
 
 - `Watch`
 - `Pushes`
+- `Pull requests`
 - `Issues`
 - `Discussions`
 
@@ -116,6 +119,7 @@ pm2 delete koishi
 
 - `star`
 - `push`
+- `pull_request`
 - `issue_opened`
 - `discussion_created`
 - `discussion_comment`
@@ -124,6 +128,7 @@ pm2 delete koishi
 
 - `github/star`
 - `github/push`
+- `github/pull-request`
 - `github/issue-opened`
 - `github/discussion-created`
 - `github/discussion-comment`
@@ -160,8 +165,10 @@ plugins:
   github-qq-relay:
     defaultPlatform: onebot
     defaultBotId: "1234567890"
+    defaultBranch: main
     defaultEvents:
       - push
+      - pull_request
       - issue_opened
       - discussion_created
       - discussion_comment
@@ -171,6 +178,7 @@ plugins:
     maxPushCommits: 3
     bindings:
       - repo: owner/repo
+        branch: main
         channelId: "12345678"
         guildId: ""
         platform: onebot
@@ -188,6 +196,8 @@ plugins:
   默认目标 Bot ID。单 QQ Bot 场景通常可留空；多机器人场景建议填写。
 - `defaultEvents`
   命令绑定和静态绑定未显式指定 `events` 时使用的默认事件列表。
+- `defaultBranch`
+  Push 分支过滤默认值。未显式指定 `branch` 时，默认只转发 `main` 分支的 Push。
 - `debug`
   开启后输出更详细的匹配和转发日志。
 - `concurrency`
@@ -198,6 +208,7 @@ plugins:
   `push` 消息中最多展示多少条提交。
 - `bindings`
   静态绑定表。数据库绑定和静态绑定会合并生效。
+  其中 `branch` 仅对 `push` 事件生效，默认值为 `main`。
 
 
 ## 绑定命令
@@ -213,13 +224,19 @@ github-relay.bind owner/repo
 绑定指定群并指定事件：
 
 ```text
-github-relay.bind owner/repo 12345678 -e push,issue_opened,discussion_created,discussion_comment
+github-relay.bind owner/repo 12345678 -e push,pull_request,issue_opened,discussion_created,discussion_comment
 ```
 
 多 Bot / 多平台场景：
 
 ```text
 github-relay.bind owner/repo 12345678 -p onebot -b 1234567890 -e push,star
+```
+
+指定 Push 分支：
+
+```text
+github-relay.bind owner/repo 12345678 -r dev -e push,pull_request
 ```
 
 查看绑定：
@@ -234,6 +251,7 @@ github-relay.list owner/repo
 ```text
 github-relay.unbind owner/repo
 github-relay.unbind owner/repo 12345678
+github-relay.unbind owner/repo 12345678 -r dev
 ```
 
 说明：
@@ -241,6 +259,7 @@ github-relay.unbind owner/repo 12345678
 - `bind` 如果在群内执行，会自动继承当前会话的 `platform/channelId/guildId`
 - 如果不是在目标群里执行，建议显式传 `channelId`
 - `events` 留空时使用 `defaultEvents`
+- `branch` 留空时使用 `defaultBranch`，默认是 `main`
 
 ## GitHub Adapter 推荐配置
 
@@ -327,6 +346,18 @@ pnpm add /app/koishi-plugin
 对比：https://github.com/owner/repo/compare/...
 ```
 
+### Pull Request
+
+```text
+[GitHub PR] octocat 创建了 PR #12
+仓库：owner/repo
+标题：feat: add relay
+分支：feature/login -> main
+内容：
+...
+链接：https://github.com/owner/repo/pull/12
+```
+
 ### Issue Opened
 
 ```text
@@ -367,6 +398,7 @@ pnpm add /app/koishi-plugin
 - 本插件不自己接收 GitHub Webhook，必须和 `adapter-github` 配合使用
 - `discussion` 事件依赖 `adapter-github` 的 Webhook 模式
 - 如果有多个非 GitHub 平台 Bot 且未指定 `platform/botId`，自动选 Bot 可能会不明确
+- `branch` 过滤目前仅作用于 `push`，默认只转发 `main` 分支
 - “每天推送 project 日报” 目前未实现，需要单独接 GitHub Projects API 与定时任务
 
 ## 依据

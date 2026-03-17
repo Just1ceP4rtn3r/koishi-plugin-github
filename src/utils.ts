@@ -1,6 +1,8 @@
 import { Session } from 'koishi'
 import { RelayEventName, relayEvents } from './types'
 
+export const FALLBACK_BRANCH = 'main'
+
 export function normalizeRepoKey(repo?: string) {
   if (!repo) return ''
   const normalized = repo.trim().replace(/^https:\/\/github\.com\//, '').replace(/\/+$/, '')
@@ -20,8 +22,13 @@ export function normalizeEvents(events?: RelayEventName[], fallback: RelayEventN
   return Array.from(new Set(events))
 }
 
-export function makeBindingKey(repo: string, platform?: string, channelId?: string, guildId?: string, botId?: string) {
-  return [repo, platform || '', channelId || '', guildId || '', botId || ''].join('::')
+export function normalizeBranch(branch?: string, fallback = FALLBACK_BRANCH) {
+  const normalized = simplifyRef(branch).trim()
+  return normalized && normalized !== 'unknown' ? normalized : fallback
+}
+
+export function makeBindingKey(repo: string, branch?: string, platform?: string, channelId?: string, guildId?: string, botId?: string) {
+  return [repo, normalizeBranch(branch), platform || '', channelId || '', guildId || '', botId || ''].join('::')
 }
 
 export function inferPlatform(session?: Session) {

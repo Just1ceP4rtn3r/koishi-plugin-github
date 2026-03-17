@@ -1,10 +1,11 @@
-export const relayEvents = ['star', 'push', 'issue_opened', 'discussion_created', 'discussion_comment'] as const
+export const relayEvents = ['star', 'push', 'pull_request', 'issue_opened', 'discussion_created', 'discussion_comment'] as const
 
 export type RelayEventName = typeof relayEvents[number]
 
 export interface RelayBindingRecord {
   id: number
   repo: string
+  branch?: string
   platform: string
   botId?: string
   channelId: string
@@ -18,6 +19,7 @@ export interface RelayBindingRecord {
 
 export interface BindingConfig {
   repo: string
+  branch?: string
   channelId: string
   guildId?: string
   platform?: string
@@ -27,6 +29,7 @@ export interface BindingConfig {
 
 export interface NormalizedBinding {
   repo: string
+  branch: string
   platform?: string
   botId?: string
   channelId: string
@@ -86,6 +89,24 @@ export interface GitHubIssueEvent extends GitHubBaseEvent {
     html_url?: string
     assignees?: GitHubIssueAssignee[]
   }
+}
+
+export interface GitHubPullRequestRef {
+  ref?: string
+}
+
+export interface GitHubPullRequestEvent extends GitHubBaseEvent {
+  pullRequest: {
+    number?: number
+    title?: string
+    body?: string
+    html_url?: string
+    merged?: boolean
+    draft?: boolean
+    base?: GitHubPullRequestRef
+    head?: GitHubPullRequestRef
+  }
+  action?: 'opened' | 'closed' | 'reopened' | string
 }
 
 export interface GitHubDiscussionComment {

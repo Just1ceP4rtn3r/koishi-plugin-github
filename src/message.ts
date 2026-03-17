@@ -1,5 +1,5 @@
 import { Config } from './config'
-import { GitHubDiscussionEvent, GitHubIssueEvent, GitHubPushEvent, GitHubStarEvent } from './types'
+import { GitHubDiscussionEvent, GitHubIssueEvent, GitHubPullRequestEvent, GitHubPushEvent, GitHubStarEvent } from './types'
 import { buildCompareUrl, firstLine, simplifyRef } from './utils'
 
 export function buildStarMessage(event: GitHubStarEvent) {
@@ -60,6 +60,30 @@ export function buildIssueOpenedMessage(event: GitHubIssueEvent) {
   if (assignees) lines.push(`指派给：${assignees}`)
   if (event.issue.body) lines.push(`内容：\n${event.issue.body}`)
   if (event.issue.html_url) lines.push(`链接：${event.issue.html_url}`)
+
+  return lines.join('\n')
+}
+
+export function buildPullRequestMessage(event: GitHubPullRequestEvent) {
+  const actor = event.actor?.login || event.actor?.name || 'unknown'
+  const action = event.action === 'closed'
+    ? (event.pullRequest.merged ? '合并了' : '关闭了')
+    : event.action === 'reopened'
+      ? '重新打开了'
+      : '创建了'
+  const head = simplifyRef(event.pullRequest.head?.ref)
+  const base = simplifyRef(event.pullRequest.base?.ref)
+
+  const lines = [
+    `[GitHub PR] ${actor} ${action} PR #${event.pullRequest.number || '?'}`,
+    `仓库：${event.repoKey}`,
+    `标题：${event.pullRequest.title || '(no title)'}`,
+  ]
+
+  if (head !== 'unknown' || base !== 'unknown') lines.push(`分支：${head} -> ${base}`)
+  if (event.pullRequest.draft) lines.push('状态：Draft')
+  if (event.pullRequest.body) lines.push(`内容：\n${event.pullRequest.body}`)
+  if (event.pullRequest.html_url) lines.push(`链接：${event.pullRequest.html_url}`)
 
   return lines.join('\n')
 }

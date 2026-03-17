@@ -1,9 +1,9 @@
 import { Bot, Context, Logger } from 'koishi'
 import { Config } from './config'
 import { getMergedBindings } from './database'
-import { buildDiscussionCommentMessage, buildDiscussionCreatedMessage, buildIssueOpenedMessage, buildPushMessage, buildStarMessage } from './message'
-import { GitHubBaseEvent, GitHubDiscussionEvent, GitHubIssueEvent, GitHubPushEvent, GitHubStarEvent, NormalizedBinding, RelayEventName } from './types'
-import { formatError } from './utils'
+import { buildDiscussionCommentMessage, buildDiscussionCreatedMessage, buildIssueOpenedMessage, buildPullRequestMessage, buildPushMessage, buildStarMessage } from './message'
+import { GitHubBaseEvent, GitHubDiscussionEvent, GitHubIssueEvent, GitHubPullRequestEvent, GitHubPushEvent, GitHubStarEvent, NormalizedBinding, RelayEventName } from './types'
+import { formatError, normalizeBranch, simplifyRef } from './utils'
 
 const logger = new Logger('github-qq-relay')
 
@@ -14,6 +14,10 @@ export function registerRelay(ctx: Context, config: Config) {
 
   ;(ctx.on as any)('github/push', async (event: GitHubPushEvent) => {
     await relayEvent(ctx, config, 'push', event, buildPushMessage(event, config))
+  })
+
+  ;(ctx.on as any)('github/pull-request', async (event: GitHubPullRequestEvent) => {
+    await relayEvent(ctx, config, 'pull_request', event, buildPullRequestMessage(event))
   })
 
   ;(ctx.on as any)('github/issue-opened', async (event: GitHubIssueEvent) => {
@@ -37,7 +41,7 @@ async function relayEvent(
   message: string,
 ) {
   const bindings = await getMergedBindings(ctx, config, event.repoKey)
-  const matched = bindings.filter(binding => binding.enabled && binding.events.includes(eventName))
+  const matched = bindings.filter(binding => isBindingMatched(binding, eventName, event, config))
 
   if (!matched.length) {
     if (config.debug) logger.info('no bindings matched for %s (%s)', event.repoKey, eventName)
@@ -50,7 +54,9 @@ async function relayEvent(
       throw new Error(`未找到可用的目标 Bot${binding.platform ? `（platform=${binding.platform}）` : ''}`)
     }
 
-    if (binding.guildId) {
+    if (bot.platform === 'onebot') {
+      await bot.sendMessage(binding.channelId, message)
+    } else if (binding.guildId) {
       await bot.sendMessage(binding.channelId, message, binding.guildId)
     } else {
       await bot.sendMessage(binding.channelId, message)
@@ -75,6 +81,19 @@ async function relayEvent(
       logger.info('relayed %s (%s) to %s:%s', event.repoKey, eventName, binding.platform || 'auto', binding.channelId)
     }
   })
+}
+
+function isBindingMatched(
+  binding: NormalizedBinding,
+  eventName: RelayEventName,
+  event: GitHubBaseEvent,
+  config: Config,
+) {
+  if (!binding.enabled || !binding.events.includes(eventName)) return false
+  if (eventName !== 'push') return true
+  const eventBranch = normalizeBranch((event as GitHubPushEvent).ref, config.defaultBranch)
+  const bindingBranch = normalizeBranch(binding.branch, config.defaultBranch)
+  return bindingBranch === simplifyRef(eventBranch)
 }
 
 function resolveTargetBot(ctx: Context, binding: NormalizedBinding, config: Config): Bot | null {
