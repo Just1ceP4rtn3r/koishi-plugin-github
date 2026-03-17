@@ -20,12 +20,13 @@ export function registerCommands(ctx: Context, config: Config) {
       const repoKey = normalizeRepoKey(repo)
       if (!repoKey) return '仓库格式错误，应为 owner/repo。'
 
-      const targetChannelId = channelId || session?.channelId
+      const inferred = inferChannelAndBranch(channelId, options.branch, session?.channelId, config.defaultBranch)
+      const targetChannelId = inferred.channelId
       if (!targetChannelId) return '缺少目标群号，请直接传入 channelId，或在目标群里执行命令。'
 
       const events = parseEventList(options.events, config.defaultEvents)
       if (!events) return `事件列表无效，只支持 ${relayEvents.join(',')}。`
-      const branch = normalizeBranch(options.branch, config.defaultBranch)
+      const branch = inferred.branch
 
       const platform = options.platform || inferPlatform(session) || config.defaultPlatform
       if (!platform) return '无法确定目标平台。请在目标群里执行命令，或使用 -p 显式指定平台。'
@@ -60,12 +61,13 @@ export function registerCommands(ctx: Context, config: Config) {
       const repoKey = normalizeRepoKey(repo)
       if (!repoKey) return '仓库格式错误，应为 owner/repo。'
 
-      const targetChannelId = channelId || session?.channelId
+      const inferred = inferChannelAndBranch(channelId, options.branch, session?.channelId, config.defaultBranch)
+      const targetChannelId = inferred.channelId
       if (!targetChannelId) return '缺少目标群号，请直接传入 channelId，或在目标群里执行命令。'
 
       const platform = options.platform || inferPlatform(session) || config.defaultPlatform
       if (!platform) return '无法确定目标平台。请在目标群里执行命令，或使用 -p 显式指定平台。'
-      const branch = normalizeBranch(options.branch, config.defaultBranch)
+      const branch = inferred.branch
       const removed = await removeBinding(ctx, repoKey, branch, platform, targetChannelId)
       if (!removed) return `未找到绑定：${repoKey}@${branch} -> ${platform}:${targetChannelId}`
 
@@ -106,6 +108,33 @@ function renderBindings(bindings: NormalizedBinding[]) {
     const user = binding.userId ? ` user=${binding.userId}` : ''
     return `${binding.repo} branch=${branch} -> ${platform}:${binding.channelId}${suffix}${user} [${binding.events.join(', ')}] (${binding.source})`
   }).join('\n')
+}
+
+function inferChannelAndBranch(inputChannelId: string | undefined, inputBranch: string | undefined, sessionChannelId: string | undefined, defaultBranch: string) {
+  if (!inputChannelId) {
+    return {
+      channelId: sessionChannelId || '',
+      branch: normalizeBranch(inputBranch, defaultBranch),
+    }
+  }
+
+  if (!inputBranch && sessionChannelId && looksLikeBranchName(inputChannelId)) {
+    return {
+      channelId: sessionChannelId,
+      branch: normalizeBranch(inputChannelId, defaultBranch),
+    }
+  }
+
+  return {
+    channelId: inputChannelId,
+    branch: normalizeBranch(inputBranch, defaultBranch),
+  }
+}
+
+function looksLikeBranchName(value: string) {
+  if (!value) return false
+  if (/^\d+$/.test(value)) return false
+  return /^[A-Za-z0-9._/-]+$/.test(value)
 }
 
 function ensureAuthority(session: any, required: number) {
