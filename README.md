@@ -215,6 +215,22 @@ plugins:
 
 建议直接在目标 QQ 群里执行。
 
+命令签名：
+
+```text
+github-relay.bind <repo> [channelId]
+github-relay.unbind <repo> [channelId]
+github-relay.list [repo]
+```
+
+常用选项：
+
+- `-e <events>` 事件列表，逗号分隔，可选值：`star`、`push`、`pull_request`、`issue_opened`、`discussion_created`、`discussion_comment`
+- `-r <branch>` Push 分支过滤，默认使用 `defaultBranch`，通常是 `main`
+- `-p <platform>` 目标平台，例如 `onebot`
+- `-b <botId>` 目标 Bot ID，仅 `bind` 支持
+- `-g <guildId>` 可选 guildId，仅 `bind` 支持
+
 绑定当前群：
 
 ```text
@@ -256,10 +272,15 @@ github-relay.unbind owner/repo 12345678 -r dev
 
 说明：
 
-- `bind` 如果在群内执行，会自动继承当前会话的 `platform/channelId/guildId`
+- `bind` 和 `unbind` 如果在群内执行，`[channelId]` 可省略，此时会直接使用当前群号
+- `bind` 如果在群内执行，还会优先继承当前会话的 `platform`、`botId`、`guildId`
 - 如果不是在目标群里执行，建议显式传 `channelId`
 - `events` 留空时使用 `defaultEvents`
 - `branch` 留空时使用 `defaultBranch`，默认是 `main`
+- `branch` 目前只对 `push` 事件生效，`pull_request`、`issue_opened` 等事件不会按分支过滤
+- `list` 在群内执行时，会优先显示当前群的绑定；如果当前群没有绑定，再显示全部结果
+- 推荐显式使用 `-r` 指定分支，例如 `github-relay.bind owner/repo -r main -e push,pull_request`
+- 为兼容旧用法，如果你在群内执行 `github-relay.bind owner/repo main -e push,pull_request`，插件会尽量把第二个参数 `main` 识别为分支，而不是群号；但更推荐改成 `-r main`
 
 ## GitHub Adapter 推荐配置
 

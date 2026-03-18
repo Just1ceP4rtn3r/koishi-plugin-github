@@ -54,6 +54,14 @@ export function firstLine(input?: string) {
   return input.split('\n')[0].trim()
 }
 
+export function truncateText(input?: string, maxLength = 50) {
+  if (!input) return ''
+  const chars = Array.from(input.trim())
+  if (chars.length <= maxLength) return chars.join('')
+  if (maxLength <= 3) return '.'.repeat(maxLength)
+  return `${chars.slice(0, maxLength - 3).join('')}...`
+}
+
 export function buildCompareUrl(repo: string, before?: string, after?: string) {
   if (!before || !after) return ''
   if (/^0+$/.test(before)) return `https://github.com/${repo}/commit/${after}`
