@@ -29,6 +29,7 @@ export function registerRelay(ctx: Context, config: Config) {
   })
 
   ;(ctx.on as any)('github/discussion-comment', async (event: GitHubDiscussionEvent) => {
+    if (event.action && event.action !== 'created') return
     await relayEvent(ctx, config, 'discussion_comment', event, buildDiscussionCommentMessage(event))
   })
 }

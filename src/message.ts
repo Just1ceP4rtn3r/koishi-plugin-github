@@ -1,6 +1,6 @@
 import { Config } from './config'
 import { GitHubDiscussionEvent, GitHubIssueEvent, GitHubPullRequestEvent, GitHubPushEvent, GitHubStarEvent } from './types'
-import { buildCompareUrl, firstLine, simplifyRef } from './utils'
+import { buildCompareUrl, firstLine, simplifyRef, truncateText } from './utils'
 
 export function buildStarMessage(event: GitHubStarEvent) {
   const actor = event.actor?.login || event.actor?.name || 'unknown'
@@ -49,16 +49,18 @@ export function buildIssueOpenedMessage(event: GitHubIssueEvent) {
   const assignees = (event.issue.assignees || [])
     .map(item => item.login)
     .filter(Boolean)
-    .join(', ')
+    .map(login => `@${login}`)
+    .join(' ')
 
   const lines = [
+    '@全体成员',
     `[GitHub Issue] ${actor} 创建了 Issue #${event.issue.number || '?'}`,
     `仓库：${event.repoKey}`,
     `标题：${event.issue.title || '(no title)'}`,
   ]
 
-  if (assignees) lines.push(`指派给：${assignees}`)
-  if (event.issue.body) lines.push(`内容：\n${event.issue.body}`)
+  if (assignees) lines.splice(1, 0, assignees)
+  if (event.issue.body) lines.push(`内容：\n${truncateText(event.issue.body)}`)
   if (event.issue.html_url) lines.push(`链接：${event.issue.html_url}`)
 
   return lines.join('\n')
@@ -82,7 +84,7 @@ export function buildPullRequestMessage(event: GitHubPullRequestEvent) {
 
   if (head !== 'unknown' || base !== 'unknown') lines.push(`分支：${head} -> ${base}`)
   if (event.pullRequest.draft) lines.push('状态：Draft')
-  if (event.pullRequest.body) lines.push(`内容：\n${event.pullRequest.body}`)
+  if (event.pullRequest.body) lines.push(`内容：\n${truncateText(event.pullRequest.body)}`)
   if (event.pullRequest.html_url) lines.push(`链接：${event.pullRequest.html_url}`)
 
   return lines.join('\n')
@@ -97,7 +99,7 @@ export function buildDiscussionCreatedMessage(event: GitHubDiscussionEvent) {
   ]
 
   if (event.discussion.category?.name) lines.push(`分类：${event.discussion.category.name}`)
-  if (event.discussion.body) lines.push(`内容：\n${event.discussion.body}`)
+  if (event.discussion.body) lines.push(`内容：\n${truncateText(event.discussion.body)}`)
   if (event.discussion.html_url) lines.push(`链接：${event.discussion.html_url}`)
 
   return lines.join('\n')
@@ -106,12 +108,11 @@ export function buildDiscussionCreatedMessage(event: GitHubDiscussionEvent) {
 export function buildDiscussionCommentMessage(event: GitHubDiscussionEvent) {
   const actor = event.actor?.login || event.actor?.name || 'unknown'
   const lines = [
-    `[GitHub Discussion Comment] ${actor} 评论了 Discussion #${event.discussion.number || '?'}`,
-    `仓库：${event.repoKey}`,
+    `推送人：${actor}`,
     `标题：${event.discussion.title || '(no title)'}`,
   ]
 
-  if (event.comment?.body) lines.push(`内容：\n${event.comment.body}`)
+  if (event.comment?.body) lines.push(`内容：\n${truncateText(event.comment.body)}`)
   if (event.comment?.html_url || event.discussion.html_url) lines.push(`链接：${event.comment?.html_url || event.discussion.html_url}`)
 
   return lines.join('\n')
